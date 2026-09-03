@@ -1,0 +1,30 @@
+Options(){Resolution=1;};
+
+Plot()
+{
+  Curve("IntCal20","intcal20.14c");
+  Curve("SHCal20","shcal20.14c");
+  Mix_Curves("Mixed IntCal20-SHCal20","IntCal20","SHCal20",U(0,100));
+
+  P_Sequence("TRIU Model 1 - published core dates only",1,1,U(-2,2))
+  {
+    Boundary("Core base");
+
+    R_Date("330146 TRIU-700",4430,40){z=700;};
+    R_Date("369004 TRIU578-579",3970,30){z=578;};
+    R_Date("369003 TRIU384-385",1810,30){z=384;};
+    R_Date("369002 TRIU353-354",1580,30){z=353;};
+    R_Date("369000 TRIU283-285",1070,30){z=284;};
+    R_Date("368999 TRIU208-209",830,30){z=208;};
+    R_Date("369001 TRIU188-189",730,30){z=188;};
+    R_Date("368998 TRIU153-155",570,30){z=154;};
+    R_Date("368997 TRIU118-120",480,30){z=119;};
+    R_Date("330145 TRIU-100",410,30){z=100;};
+    R_Date("368996 TRIU53-55",90,30){z=54;};
+
+    Boundary(
+      "Core top AD 2012",
+      Date(N(AD(2012),1))
+    ){z=0;};
+  };
+};
