@@ -1,0 +1,166 @@
+library(readxl)
+library(dplyr)
+library(tidyr)
+
+file <- "El_Triunfo_26.xlsx"
+
+rel <- read_excel(file, sheet = "%_2026", range = "B2:AF102")
+names(rel)[1] <- "Species"
+
+eco <- read_excel(file, sheet = "E_class", range = "B2:J102") %>%
+  transmute(
+    Species,
+    R = suppressWarnings(as.numeric(R)),
+    H = suppressWarnings(as.numeric(H)),
+    N = suppressWarnings(as.numeric(N)),
+    O = suppressWarnings(as.numeric(O)),
+    S = suppressWarnings(as.numeric(S)),
+    T = suppressWarnings(as.numeric(T)),
+    M = suppressWarnings(as.numeric(M)),
+    Habitat = case_when(
+      Habitat == "Planktonic" ~ 1,
+      Habitat == "Benthic-planktonic" ~ 2,
+      Habitat == "Benthic" ~ 3,
+      Habitat == "Benthic-aerophilic" ~ 4,
+      Habitat == "Aerophilic" ~ 5,
+      TRUE ~ NA_real_
+    )
+  )
+
+dat <- rel %>%
+  pivot_longer(-Species, names_to = "Sample", values_to = "Abundance") %>%
+  mutate(
+    Abundance = as.numeric(Abundance),
+    Depth = as.numeric(gsub("[^0-9.]", "", Sample))
+  ) %>%
+  left_join(eco, by = "Species")
+
+weighted_index <- function(abundance, score) {
+  ok <- !is.na(abundance) & !is.na(score)
+  if (!any(ok)) return(NA_real_)
+  sum(abundance[ok] * score[ok]) / sum(abundance[ok])
+}
+
+indices <- dat %>%
+  group_by(Depth) %>%
+  summarise(
+    R = weighted_index(Abundance, R),
+    H = weighted_index(Abundance, H),
+    N = weighted_index(Abundance, N),
+    O = weighted_index(Abundance, O),
+    S = weighted_index(Abundance, S),
+    T = weighted_index(Abundance, T),
+    M = weighted_index(Abundance, M),
+    Habitat = weighted_index(Abundance, Habitat),
+    .groups = "drop"
+  ) %>%
+  arrange(Depth)
+
+print(indices)
+
+vars <- c("N", "O", "S", "T", "M", "Habitat")
+
+index_correlations <- combn(vars, 2, simplify = FALSE) %>%
+  lapply(function(v) {
+    ok <- complete.cases(indices[, v])
+    test <- cor.test(
+      indices[[v[1]]][ok],
+      indices[[v[2]]][ok],
+      method = "spearman",
+      exact = FALSE
+    )
+    data.frame(
+      Index_1 = v[1],
+      Index_2 = v[2],
+      rho = unname(test$estimate),
+      p = test$p.value,
+      n = sum(ok)
+    )
+  }) %>%
+  bind_rows()
+
+print(index_correlations)
+
+env <- read_excel(file, sheet = "pH", range = "B2:F88")
+names(env) <- c("Depth", "WTD", "pH", "z_WTD", "z_pH")
+
+env <- env %>%
+  mutate(across(everything(), ~ suppressWarnings(as.numeric(.)))) %>%
+  filter(!is.na(Depth))
+
+geo <- read_excel(file, sheet = "Geochem", range = "B2:U319") %>%
+  transmute(
+    Depth = suppressWarnings(as.numeric(Depth_cm)),
+    N_percent = suppressWarnings(as.numeric(wt_N_percent)),
+    Organic_C = suppressWarnings(as.numeric(`organic carbon`))
+  ) %>%
+  filter(!is.na(Depth))
+
+env_index <- vapply(
+  indices$Depth,
+  function(d) which.min(abs(env$Depth - d)),
+  integer(1)
+)
+
+env_matched <- indices %>%
+  mutate(
+    Env_depth = env$Depth[env_index],
+    Distance = abs(Depth - Env_depth),
+    WTD = env$WTD[env_index],
+    pH = env$pH[env_index]
+  ) %>%
+  filter(Distance <= 5)
+
+geo_index <- vapply(
+  indices$Depth,
+  function(d) which.min(abs(geo$Depth - d)),
+  integer(1)
+)
+
+geo_matched <- indices %>%
+  mutate(
+    Geo_depth = geo$Depth[geo_index],
+    Distance = abs(Depth - Geo_depth),
+    N_percent = geo$N_percent[geo_index],
+    Organic_C = geo$Organic_C[geo_index]
+  ) %>%
+  filter(Distance <= 5)
+
+spearman_test <- function(data, x, y) {
+  ok <- complete.cases(data[[x]], data[[y]])
+  test <- cor.test(
+    data[[x]][ok],
+    data[[y]][ok],
+    method = "spearman",
+    exact = FALSE
+  )
+  data.frame(
+    Index = x,
+    Proxy = y,
+    rho = unname(test$estimate),
+    p = test$p.value,
+    n = sum(ok)
+  )
+}
+
+environmental_results <- bind_rows(
+  spearman_test(env_matched, "R", "pH"),
+  spearman_test(env_matched, "M", "WTD"),
+  spearman_test(env_matched, "Habitat", "WTD"),
+  spearman_test(env_matched, "O", "WTD")
+)
+
+print(environmental_results)
+
+geochemical_results <- bind_rows(
+  spearman_test(geo_matched, "N", "N_percent"),
+  spearman_test(geo_matched, "N", "Organic_C")
+)
+
+print(geochemical_results)
+
+target_results <- bind_rows(
+  environmental_results,
+  geochemical_results
+)
+print(target_results)
