@@ -1,0 +1,57 @@
+library(readxl)
+library(vegan)
+
+file <- "El_Triunfo_26.xlsx"
+
+# Data
+rel <- read_excel(
+  file,
+  sheet = "%_2026",
+  range = "B2:AF102"
+)
+
+sqrt_dat <- read_excel(
+  file,
+  sheet = "sqrt",
+  range = "B2:AF102"
+)
+
+rel_mat <- as.data.frame(rel[, -1])
+sqrt_mat <- as.data.frame(sqrt_dat[, -1])
+
+rel_mat[] <- lapply(rel_mat, as.numeric)
+sqrt_mat[] <- lapply(sqrt_mat, as.numeric)
+
+rownames(rel_mat) <- make.unique(rel[[1]])
+rownames(sqrt_mat) <- make.unique(sqrt_dat[[1]])
+
+rel_comm <- t(rel_mat)
+sqrt_comm <- t(sqrt_mat)
+
+# DCA
+dca_relative <- decorana(rel_comm)
+dca_sqrt <- decorana(sqrt_comm)
+
+print(dca_relative)
+print(dca_sqrt)
+
+# Gradient lengths
+relative_lengths <- apply(
+  scores(dca_relative, display = "sites", choices = 1:4),
+  2,
+  function(x) diff(range(x))
+)
+
+sqrt_lengths <- apply(
+  scores(dca_sqrt, display = "sites", choices = 1:4),
+  2,
+  function(x) diff(range(x))
+)
+
+comparison <- data.frame(
+  Axis = paste0("DCA", 1:4),
+  Relative_abundance = round(relative_lengths, 2),
+  Square_root = round(sqrt_lengths, 2)
+)
+
+print(comparison)
