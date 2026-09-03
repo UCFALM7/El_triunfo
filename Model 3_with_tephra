@@ -1,0 +1,33 @@
+Options(){Resolution=1;};
+
+Plot()
+{
+Curve("IntCal20","intcal20.14c");
+Curve("SHCal20","shcal20.14c");
+Mix_Curves("Mixed IntCal20-SHCal20","IntCal20","SHCal20",U(0,100));
+
+P_Sequence("TRIU event-free chronology + candidate tephra dates",1,1,U(-2,2))
+{
+Boundary("Core base");
+
+R_Date("330146 TRIU-700",4430,40){z=616;};
+R_Date("369004 TRIU578-579",3970,30){z=494;};
+R_Date("369003 TRIU384-385",1810,30){z=300;};
+R_Date("369002 TRIU353-354",1580,30){z=269;};
+R_Date("369000 TRIU283-285",1070,30){z=200;};
+R_Date("Tephra A - Ruiz",985,58){z=196;};
+R_Date("Tephra B - Cerro Bravo",900,110){z=192;};
+R_Date("Tephra C - Ruiz",840,60){z=179;};
+R_Date("368999 TRIU208-209",830,30){z=176;};
+R_Date("Tephra D - Ruiz",780,120){z=172;};
+R_Date("369001 TRIU188-189",730,30){z=159;};
+R_Date("Tephra E - Cerro Bravo",625,70){z=153;};
+R_Date("368998 TRIU153-155",570,30){z=137;};
+R_Date("Tephra F - Ruiz",600,50){z=123;};
+R_Date("368997 TRIU118-120",480,30){z=116;};
+R_Date("330145 TRIU-100",410,30){z=97;};
+R_Date("368996 TRIU53-55",90,30){z=51;};
+Date("Tephra G"){z=47;};
+Boundary("Core top AD 2012",Date(N(AD(2012),1))){z=0;};
+};
+};
