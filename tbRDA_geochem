@@ -4,6 +4,7 @@ library(vegan)
 
 file <- "El_Triunfo_26.xlsx"
 
+# Data
 hell <- read_excel(file, sheet = "Hellinger", range = "B2:AF102")
 
 geo <- read_excel(file, sheet = "Geochem", range = "B2:U319") %>%
@@ -17,6 +18,7 @@ geo <- read_excel(file, sheet = "Geochem", range = "B2:U319") %>%
   ) %>%
   filter(!is.na(Depth))
 
+# Community matrix
 hell_mat <- as.data.frame(hell[, -1])
 hell_mat[] <- lapply(hell_mat, as.numeric)
 rownames(hell_mat) <- make.unique(hell[[1]])
@@ -25,6 +27,7 @@ hell_comm <- as.data.frame(t(hell_mat))
 depth <- as.numeric(gsub("[^0-9.]", "", rownames(hell_comm)))
 max_depth <- max(depth, na.rm = TRUE)
 
+# Geochemical correlations
 geo_overlap <- geo[geo$Depth <= max_depth, ]
 
 geo_vars <- c("N_percent", "Organic_C", "d15N", "Atomic_CN", "d13C")
@@ -50,12 +53,15 @@ cor_results <- do.call(rbind, lapply(pairs, function(v) {
 cor_results <- cor_results[order(-abs(cor_results$rho)), ]
 print(cor_results)
 
+# Variables retained for RDA
 selected <- c("Organic_C", "d15N", "Atomic_CN", "d13C")
 
+# Standardise geochemistry
 means <- sapply(geo_overlap[, selected], mean, na.rm = TRUE)
 sds <- sapply(geo_overlap[, selected], sd, na.rm = TRUE)
 geo[, selected] <- sweep(sweep(geo[, selected], 2, means, "-"), 2, sds, "/")
 
+# Match within 5 cm
 geo_match <- geo[geo$Depth <= max_depth + 5, ]
 
 nearest <- sapply(depth, function(d) which.min(abs(geo_match$Depth - d)))
@@ -80,6 +86,7 @@ ord <- order(geo_rda$Depth)
 geo_rda <- geo_rda[ord, ]
 hell_rda <- hell_rda[ord, , drop = FALSE]
 
+# RDA
 rda_model <- rda(
   hell_rda ~ Organic_C + d15N + Atomic_CN + d13C,
   data = geo_rda
@@ -104,6 +111,7 @@ overall_results <- data.frame(
 print(overall_results)
 print(vif.cca(rda_model))
 
+# Partial RDAs
 partial_results <- do.call(rbind, lapply(selected, function(target) {
   controls <- setdiff(selected, target)
 
