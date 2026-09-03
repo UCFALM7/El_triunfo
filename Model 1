@@ -1,0 +1,28 @@
+Options()
+{
+  Resolution=1;
+  Curve="intcal13.14c";
+  BCAD=FALSE;
+  kIterations=100;
+};
+
+P_Sequence("TRIU_every_cm",1,1,U(-2,2))
+{
+  Boundary("Bottom");
+
+  R_Date("Beta-330146",4430,40){z=700;};
+  R_Date("Beta-369004",3970,30){z=578;};
+  R_Date("Beta-369003",1810,30){z=384;};
+  R_Date("Beta-369002",1580,30){z=353;};
+  R_Date("Beta-369000",1070,30){z=284;};
+  R_Date("Beta-368999",830,30){z=208;};
+  R_Date("Beta-369001",730,30){z=188;};
+  R_Date("Beta-368998",570,30){z=154;};
+  R_Date("Beta-368997",480,30){z=119;};
+  R_Date("Beta-330145",410,30){z=100;};
+  R_Date("Beta-368996",90,30){z=54;};
+
+  Date("Core-top-2012",N(AD(2012),1)){z=0;};
+
+  Boundary("Top");
+};
