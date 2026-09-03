@@ -4,6 +4,7 @@ library(tidyr)
 
 file <- "El_Triunfo_26.xlsx"
 
+# Data
 rel <- read_excel(file, sheet = "%_2026", range = "B2:AF102")
 names(rel)[1] <- "Species"
 
@@ -35,6 +36,7 @@ dat <- rel %>%
   ) %>%
   left_join(eco, by = "Species")
 
+# Weighted indices
 weighted_index <- function(abundance, score) {
   ok <- !is.na(abundance) & !is.na(score)
   if (!any(ok)) return(NA_real_)
@@ -58,6 +60,7 @@ indices <- dat %>%
 
 print(indices)
 
+# Index correlations
 vars <- c("N", "O", "S", "T", "M", "Habitat")
 
 index_correlations <- combn(vars, 2, simplify = FALSE) %>%
@@ -81,6 +84,7 @@ index_correlations <- combn(vars, 2, simplify = FALSE) %>%
 
 print(index_correlations)
 
+# Proxy data
 env <- read_excel(file, sheet = "pH", range = "B2:F88")
 names(env) <- c("Depth", "WTD", "pH", "z_WTD", "z_pH")
 
@@ -96,6 +100,7 @@ geo <- read_excel(file, sheet = "Geochem", range = "B2:U319") %>%
   ) %>%
   filter(!is.na(Depth))
 
+# Match within 5 cm
 env_index <- vapply(
   indices$Depth,
   function(d) which.min(abs(env$Depth - d)),
@@ -126,6 +131,7 @@ geo_matched <- indices %>%
   ) %>%
   filter(Distance <= 5)
 
+# Spearman tests
 spearman_test <- function(data, x, y) {
   ok <- complete.cases(data[[x]], data[[y]])
   test <- cor.test(
@@ -163,4 +169,5 @@ target_results <- bind_rows(
   environmental_results,
   geochemical_results
 )
+
 print(target_results)
