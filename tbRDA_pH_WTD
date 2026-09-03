@@ -1,0 +1,91 @@
+library(readxl)
+library(vegan)
+
+file <- "El_Triunfo_26.xlsx"
+# Data
+hell <- read_excel(file, sheet = "Hellinger - transform", range = "C2:AG102")
+
+env <- read_excel(
+  file,
+  sheet = "pH_WTD",
+  range = "B2:K88",
+  col_names = FALSE
+)
+env <- env[, 1:5]
+names(env) <- c("Depth", "WTD", "pH", "z_WTD", "z_pH")
+env[] <- lapply(env, as.numeric)
+env <- env[complete.cases(env[, c("Depth", "z_WTD", "z_pH")]), ]
+
+# Hellinger community matrix
+hell_mat <- as.data.frame(hell[, -1])
+hell_mat[] <- lapply(hell_mat, as.numeric)
+rownames(hell_mat) <- make.unique(hell[[1]])
+hell_comm <- as.data.frame(t(hell_mat))
+
+depth <- as.numeric(gsub("[^0-9.]", "", rownames(hell_comm)))
+
+# Match nearest environmental depth within 5 cm
+nearest <- sapply(depth, function(d) which.min(abs(env$Depth - d)))
+distance <- abs(env$Depth[nearest] - depth)
+matched <- distance <= 5
+
+hell_rda <- hell_comm[matched, , drop = FALSE]
+idx <- nearest[matched]
+
+env_rda <- data.frame(
+  Depth = depth[matched],
+  WTD = env$z_WTD[idx],
+  pH = env$z_pH[idx]
+)
+
+rownames(env_rda) <- rownames(hell_rda)
+
+ord <- order(env_rda$Depth)
+env_rda <- env_rda[ord, ]
+hell_rda <- hell_rda[ord, , drop = FALSE]
+
+# RDA
+rda_model <- rda(hell_rda ~ WTD + pH, data = env_rda)
+
+perm <- permute::how(
+  nperm = 999,
+  within = permute::Within(type = "series", mirror = TRUE)
+)
+
+r2 <- RsquareAdj(rda_model)
+
+set.seed(123)
+global <- anova(rda_model, permutations = perm)
+
+overall_results <- data.frame(
+  R2 = r2$r.squared,
+  Adjusted_R2 = r2$adj.r.squared,
+  p = global$`Pr(>F)`[1]
+)
+
+print(overall_results)
+
+# Partial RDA
+rda_wtd <- rda(hell_rda ~ WTD + Condition(pH), data = env_rda)
+rda_ph <- rda(hell_rda ~ pH + Condition(WTD), data = env_rda)
+
+set.seed(123)
+test_wtd <- anova(rda_wtd, permutations = perm)
+
+set.seed(123)
+test_ph <- anova(rda_ph, permutations = perm)
+
+r2_wtd <- RsquareAdj(rda_wtd)
+r2_ph <- RsquareAdj(rda_ph)
+
+partial_results <- data.frame(
+  Variable = c(
+    "Water-table depth | pH",
+    "pH | Water-table depth"
+  ),
+  R2 = c(r2_wtd$r.squared, r2_ph$r.squared),
+  Adjusted_R2 = c(r2_wtd$adj.r.squared, r2_ph$adj.r.squared),
+  p = c(test_wtd$`Pr(>F)`[1], test_ph$`Pr(>F)`[1])
+)
+
+print(partial_results)
