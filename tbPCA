@@ -1,0 +1,37 @@
+library(readxl)
+library(vegan)
+
+file <- "El_Triunfo_26.xlsx"
+
+# Hellinger data
+hell <- read_excel(
+  file,
+  sheet = "Hellinger",
+  range = "B2:AF102"
+)
+
+hell_mat <- as.data.frame(hell[, -1])
+hell_mat[] <- lapply(hell_mat, as.numeric)
+
+rownames(hell_mat) <- make.unique(hell[[1]])
+hell_comm <- as.data.frame(t(hell_mat))
+
+if (anyNA(hell_comm)) {
+  stop("NA values found in Hellinger matrix.")
+}
+
+# PCA
+pca <- rda(
+  hell_comm,
+  scale = FALSE
+)
+
+eig <- eigenvals(pca)
+variance <- 100 * eig / sum(eig)
+
+pca_results <- data.frame(
+  Axis = paste0("PC", seq_along(variance)),
+  Variance_percent = variance
+)
+
+print(pca_results)
