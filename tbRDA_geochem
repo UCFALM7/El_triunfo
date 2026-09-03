@@ -1,0 +1,133 @@
+library(readxl)
+library(dplyr)
+library(vegan)
+
+file <- "El_Triunfo_26.xlsx"
+
+hell <- read_excel(file, sheet = "Hellinger", range = "B2:AF102")
+
+geo <- read_excel(file, sheet = "Geochem", range = "B2:U319") %>%
+  transmute(
+    Depth = suppressWarnings(as.numeric(Depth_cm)),
+    N_percent = suppressWarnings(as.numeric(wt_N_percent)),
+    Organic_C = suppressWarnings(as.numeric(`organic carbon`)),
+    d15N = suppressWarnings(as.numeric(d15N_permil_AIR)),
+    Atomic_CN = suppressWarnings(as.numeric(`Atomic C/N`)),
+    d13C = suppressWarnings(as.numeric(d13C_permil_VPDB))
+  ) %>%
+  filter(!is.na(Depth))
+
+hell_mat <- as.data.frame(hell[, -1])
+hell_mat[] <- lapply(hell_mat, as.numeric)
+rownames(hell_mat) <- make.unique(hell[[1]])
+hell_comm <- as.data.frame(t(hell_mat))
+
+depth <- as.numeric(gsub("[^0-9.]", "", rownames(hell_comm)))
+max_depth <- max(depth, na.rm = TRUE)
+
+geo_overlap <- geo[geo$Depth <= max_depth, ]
+
+geo_vars <- c("N_percent", "Organic_C", "d15N", "Atomic_CN", "d13C")
+pairs <- combn(geo_vars, 2, simplify = FALSE)
+
+cor_results <- do.call(rbind, lapply(pairs, function(v) {
+  ok <- complete.cases(geo_overlap[[v[1]]], geo_overlap[[v[2]]])
+  test <- cor.test(
+    geo_overlap[[v[1]]][ok],
+    geo_overlap[[v[2]]][ok],
+    method = "spearman",
+    exact = FALSE
+  )
+  data.frame(
+    Variable_1 = v[1],
+    Variable_2 = v[2],
+    rho = unname(test$estimate),
+    p = test$p.value,
+    n = sum(ok)
+  )
+}))
+
+cor_results <- cor_results[order(-abs(cor_results$rho)), ]
+print(cor_results)
+
+selected <- c("Organic_C", "d15N", "Atomic_CN", "d13C")
+
+means <- sapply(geo_overlap[, selected], mean, na.rm = TRUE)
+sds <- sapply(geo_overlap[, selected], sd, na.rm = TRUE)
+geo[, selected] <- sweep(sweep(geo[, selected], 2, means, "-"), 2, sds, "/")
+
+geo_match <- geo[geo$Depth <= max_depth + 5, ]
+
+nearest <- sapply(depth, function(d) which.min(abs(geo_match$Depth - d)))
+distance <- abs(geo_match$Depth[nearest] - depth)
+matched <- distance <= 5
+idx <- nearest[matched]
+
+hell_rda <- hell_comm[matched, , drop = FALSE]
+
+geo_rda <- data.frame(
+  Depth = depth[matched],
+  geo_match[idx, selected, drop = FALSE]
+)
+
+rownames(geo_rda) <- rownames(hell_rda)
+
+keep <- complete.cases(geo_rda[, selected])
+geo_rda <- geo_rda[keep, ]
+hell_rda <- hell_rda[keep, , drop = FALSE]
+
+ord <- order(geo_rda$Depth)
+geo_rda <- geo_rda[ord, ]
+hell_rda <- hell_rda[ord, , drop = FALSE]
+
+rda_model <- rda(
+  hell_rda ~ Organic_C + d15N + Atomic_CN + d13C,
+  data = geo_rda
+)
+
+perm <- permute::how(
+  nperm = 999,
+  within = permute::Within(type = "series", mirror = TRUE)
+)
+
+r2 <- RsquareAdj(rda_model)
+
+set.seed(123)
+global <- anova(rda_model, permutations = perm)
+
+overall_results <- data.frame(
+  R2 = r2$r.squared,
+  Adjusted_R2 = r2$adj.r.squared,
+  p = global$`Pr(>F)`[1]
+)
+
+print(overall_results)
+print(vif.cca(rda_model))
+
+partial_results <- do.call(rbind, lapply(selected, function(target) {
+  controls <- setdiff(selected, target)
+
+  form <- as.formula(
+    paste0(
+      "hell_rda ~ ", target,
+      " + Condition(", paste(controls, collapse = " + "), ")"
+    )
+  )
+
+  model <- rda(form, data = geo_rda)
+  r2_partial <- RsquareAdj(model)
+
+  set.seed(123)
+  test <- anova(model, permutations = perm)
+
+  data.frame(
+    Variable = target,
+    R2 = r2_partial$r.squared,
+    Adjusted_R2 = r2_partial$adj.r.squared,
+    p = test$`Pr(>F)`[1]
+  )
+}))
+
+partial_results$Variable <- c("Organic C", "δ15N", "Atomic C/N", "δ13C")
+
+print(partial_results)
